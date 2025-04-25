@@ -1,3 +1,8 @@
+#[macro_use]
+extern crate include_lines;
+#[macro_use]
+extern crate assertions;
+
 mod opts;
 mod rate_limiter;
 mod request;
@@ -8,29 +13,8 @@ use std::{
     sync::{atomic::Ordering::Relaxed, Arc},
     time::{Duration, Instant},
 };
-use tokio::{select, task::JoinSet, time::sleep};
 use structopt::StructOpt;
-
-
-async fn join_requesters_or_timeout<T: 'static>(
-    mut set: JoinSet<T>, max_time: u64,
-) {
-    let timeout = sleep(Duration::from_secs(max_time));
-    tokio::pin!(timeout);
-    loop {
-        select! {
-            _ = &mut timeout => {
-                set.abort_all();
-                return;
-            },
-            res = set.join_next() => {
-                if res.is_none() {
-                    return;
-                }
-            }
-        }
-    }
-}
+use tokio::{select, task::JoinSet, time::sleep};
 
 #[tokio::main]
 async fn main() {
@@ -93,4 +77,24 @@ async fn main() {
 
     let _ = report_handle.abort();
     let _ = replenisher_handle.abort();
+}
+
+async fn join_requesters_or_timeout<T: 'static>(
+    mut set: JoinSet<T>, max_time: u64,
+) {
+    let timeout = sleep(Duration::from_secs(max_time));
+    tokio::pin!(timeout);
+    loop {
+        select! {
+            _ = &mut timeout => {
+                set.abort_all();
+                return;
+            },
+            res = set.join_next() => {
+                if res.is_none() {
+                    return;
+                }
+            }
+        }
+    }
 }
